@@ -11,10 +11,7 @@
 #include "starter3_util.h"
 #include "camera.h"
 #include "timestepper.h"
-#include "simplesystem.h"
-#include "pendulumsystem.h"
 #include "clothsystem.h"
-#include "gelatinsystem.h"
 
 using namespace std;
 
@@ -57,10 +54,7 @@ bool gDragMode = false;
 GLuint program_color;
 GLuint program_light;
 
-SimpleSystem* simpleSystem;
-PendulumSystem* pendulumSystem;
 ClothSystem* clothSystem;
-GelatinSystem* gelatinSystem;
 
 // Function implementations
 static void keyCallback(GLFWwindow* window, int key,
@@ -204,18 +198,12 @@ void initSystem()
     default: printf("Unrecognized integrator\n"); exit(-1);
     }
 
-    simpleSystem = new SimpleSystem(Vector3f(0.f,0.f,0.f), 1.f, 2.f);
-    pendulumSystem = new PendulumSystem(Vector3f(-0.4f,1.f,0.f),4,0.5f,5.f);
     clothSystem = new ClothSystem(Vector3f(0.4f,1.f,0),8,8,0.2f,300.f);
-    gelatinSystem = new GelatinSystem(Vector3f(-2.f,-1.f,0),6,6,6,0.3f,30.f);
 }
 
 void freeSystem() {
-    delete simpleSystem; simpleSystem = nullptr;
     delete timeStepper; timeStepper = nullptr;
-    delete pendulumSystem; pendulumSystem = nullptr;
     delete clothSystem; clothSystem = nullptr;
-    delete gelatinSystem; gelatinSystem = nullptr;
 }
 
 void resetTime() {
@@ -232,10 +220,7 @@ void stepSystem()
 {
     // step until simulated_s has caught up with elapsed_s.
     while (simulated_s < elapsed_s) {
-        timeStepper->takeStep(simpleSystem, h);
-        timeStepper->takeStep(pendulumSystem, h);
         timeStepper->takeStep(clothSystem, h);
-        timeStepper->takeStep(gelatinSystem, h);
         simulated_s += h;
     }
 }
@@ -248,10 +233,7 @@ void drawSystem()
     GLProgram gl(program_light, program_color, &camera);
     gl.updateLight(LIGHT_POS, LIGHT_COLOR.xyz()); // once per frame
 
-    simpleSystem->draw(gl);
-    pendulumSystem->draw(gl);
     clothSystem->draw(gl);
-    gelatinSystem->draw(gl);
 
     // set uniforms for floor
     gl.updateMaterial(FLOOR_COLOR);
