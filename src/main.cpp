@@ -11,7 +11,7 @@
 #include "starter3_util.h"
 #include "camera.h"
 #include "timestepper.h"
-#include "clothsystem.h"
+#include "windowsystem.h"
 
 using namespace std;
 
@@ -24,8 +24,6 @@ void stepSystem();
 void drawSystem();
 void freeSystem();
 void resetTime();
-
-void toggleWind();
 
 void initRendering();
 void drawAxis();
@@ -54,7 +52,7 @@ bool gDragMode = false;
 GLuint program_color;
 GLuint program_light;
 
-ClothSystem* clothSystem;
+WindowSystem* windowSystem;
 
 // Function implementations
 static void keyCallback(GLFWwindow* window, int key,
@@ -88,7 +86,6 @@ static void keyCallback(GLFWwindow* window, int key,
     case 'W':
     {
         cout << "Toggling Wind\n";
-        toggleWind();
         break;
     }
     case 'P':
@@ -192,18 +189,16 @@ void drawAxis()
 void initSystem()
 {
     switch (integrator) {
-    case 'e': timeStepper = new ForwardEuler(); break;
-    case 't': timeStepper = new Trapezoidal(); break;
     case 'r': timeStepper = new RK4(); break;
     default: printf("Unrecognized integrator\n"); exit(-1);
     }
 
-    clothSystem = new ClothSystem(Vector3f(0.4f,1.f,0),8,8,0.2f,300.f);
+    windowSystem = new WindowSystem(Vector3f(-1.f,-1.f,0));
 }
 
 void freeSystem() {
     delete timeStepper; timeStepper = nullptr;
-    delete clothSystem; clothSystem = nullptr;
+    delete windowSystem; windowSystem = nullptr;
 }
 
 void resetTime() {
@@ -212,15 +207,11 @@ void resetTime() {
     start_tick = glfwGetTimerValue();
 }
 
-void toggleWind() {
-    clothSystem->toggleWind();
-}
-
 void stepSystem()
 {
     // step until simulated_s has caught up with elapsed_s.
     while (simulated_s < elapsed_s) {
-        timeStepper->takeStep(clothSystem, h);
+        timeStepper->takeStep(windowSystem, h);
         simulated_s += h;
     }
 }
@@ -233,7 +224,7 @@ void drawSystem()
     GLProgram gl(program_light, program_color, &camera);
     gl.updateLight(LIGHT_POS, LIGHT_COLOR.xyz()); // once per frame
 
-    clothSystem->draw(gl);
+    windowSystem->draw(gl);
 
     // set uniforms for floor
     gl.updateMaterial(FLOOR_COLOR);
@@ -260,8 +251,6 @@ int main(int argc, char** argv)
 {
     if (argc != 3) {
         printf("Usage: %s <e|t|r> <timestep>\n", argv[0]);
-        printf("       e: Integrator: Forward Euler\n");
-        printf("       t: Integrator: Trapezoid\n");
         printf("       r: Integrator: RK 4\n");
         printf("\n");
         printf("Try  : %s t 0.001\n", argv[0]);
