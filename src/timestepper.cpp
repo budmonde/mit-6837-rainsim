@@ -8,34 +8,64 @@ void RK4::takeStep(ParticleSystem* particleSystem, float stepSize) {
 
     particleSystem->takeStep();
 
-    map<int, Vector3f> curr = particleSystem->getState();
-    map<int, Vector3f> k1 = particleSystem->evalF(curr);
+    // first term
+    map<int, Vector3f> pos_1 = particleSystem->getPositions();
+    map<int, Vector3f> vel_1 = particleSystem->getVelocities();
+    map<int, Vector3f> accel_1 = particleSystem->evalAccel(pos_1, vel_1);
 
-    map<int, Vector3f> addK1;
-    for (map<int, Vector3f>::iterator it=curr.begin(); it != curr.end(); ++it) {
-        int i = it->first;
-        addK1.insert(pair <int, Vector3f> (i, curr[i] + (stepSize/2) * k1[i]));
+    // second term
+    map<int, Vector3f> pos_2;
+    map<int, Vector3f> vel_2;
+    map<int, Vector3f> accel_2;
+    for (const auto& it : pos_1) {
+        int i = it.first;
+        pos_2.insert(pair <int, Vector3f> (i, pos_1[i] + (stepSize/2) * vel_1[i]));
     }
-    map<int, Vector3f> k2 = particleSystem->evalF(addK1);
+    for (const auto& it : vel_1) {
+        int i = it.first;
+        vel_2.insert(pair <int, Vector3f> (i, vel_1[i] + (stepSize/2) * accel_1[i]));
+    }
+    accel_2 = particleSystem->evalAccel(pos_2, vel_2);
 
-    map<int, Vector3f> addK2;
-    for (map<int, Vector3f>::iterator it=curr.begin(); it != curr.end(); ++it) {
-        int i = it->first;
-        addK2.insert(pair <int, Vector3f> (i, curr[i] + (stepSize/2) * k2[i]));
+    // third term
+    map<int, Vector3f> pos_3;
+    map<int, Vector3f> vel_3;
+    map<int, Vector3f> accel_3;
+    for (const auto& it : pos_1) {
+        int i = it.first;
+        pos_3.insert(pair <int, Vector3f> (i, pos_1[i] + (stepSize/2) * vel_2[i]));
     }
-    map<int, Vector3f> k3 = particleSystem->evalF(addK2);
+    for (const auto& it : vel_1) {
+        int i = it.first;
+        vel_3.insert(pair <int, Vector3f> (i, vel_1[i] + (stepSize/2) * accel_2[i]));
+    }
+    accel_3 = particleSystem->evalAccel(pos_3, vel_3);
 
-    map<int, Vector3f> addK3;
-    for (map<int, Vector3f>::iterator it=curr.begin(); it != curr.end(); ++it) {
-        int i = it->first;
-        addK3.insert(pair <int, Vector3f> (i, curr[i] + stepSize * k3[i]));
+    // fourth term
+    map<int, Vector3f> pos_4;
+    map<int, Vector3f> vel_4;
+    map<int, Vector3f> accel_4;
+    for (const auto& it : pos_1) {
+        int i = it.first;
+        pos_4.insert(pair <int, Vector3f> (i, pos_1[i] + stepSize * vel_3[i]));
     }
-    map<int, Vector3f> k4 = particleSystem->evalF(addK3);
+    for (const auto& it : vel_1) {
+        int i = it.first;
+        vel_4.insert(pair <int, Vector3f> (i, vel_1[i] + stepSize * accel_3[i]));
+    }
+    accel_4 = particleSystem->evalAccel(pos_4, vel_4);
 
-    for (map<int, Vector3f>::iterator it=curr.begin(); it != curr.end(); ++it) {
-        int i = it->first;
-        curr[i] += (stepSize/6) * (k1[i] + 2.f*k2[i] + 2.f*k3[i] + k4[i]);
+    // putting it together
+    for (const auto& it : pos_1) {
+        int i = it.first;
+        pos_1[i] += (stepSize/6) * (vel_1[i] + vel_2[i]*2.f + vel_3[i]*2.f + vel_4[i]);
     }
-    particleSystem->setState(curr);
+    for (const auto& it : vel_1) {
+        int i = it.first;
+        vel_1[i] += (stepSize/6) * (accel_1[i] + accel_2[i]*2.f + accel_3[i]*2.f + accel_4[i]);
+    }
+
+    particleSystem->setPositions(pos_1);
+    particleSystem->setVelocities(vel_1);
 }
 

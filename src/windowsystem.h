@@ -8,6 +8,8 @@
 #include "droplet.h"
 #include "particlesystem.h"
 
+using namespace std;
+
 class WindowSystem : public ParticleSystem
 {
     ///ADD MORE FUNCTION AND FIELDS HERE
@@ -16,17 +18,18 @@ public:
 
     void takeStep() override;
 
-    // evalF is called by the integrator at least once per time step
-    std::map<int, Vector3f> evalF(std::map<int, Vector3f> state) override;
+    map<int, Vector3f> evalAccel(map<int, Vector3f> posState, map<int, Vector3f> velState) override;
 
     // draw is called once per frame
     void draw(GLProgram& ctx);
 
 protected:
     // inherits
-    // std::vector<Vector3f> m_vVecState;
+    // vector<Vector3f> m_vVecState;
+    // vector<Vector3f> posState;
+    // vector<Vector3f> velState;
     Vector3f origin;
-    vector<Droplet *> droplets;
+    map<int, Droplet *> droplets;
 };
 
 

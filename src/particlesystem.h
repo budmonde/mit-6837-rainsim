@@ -7,6 +7,7 @@
 
 #include <cstdint>
 
+using namespace std;
 
 // helper for uniform distribution
 float rand_uniform(float low, float hi);
@@ -20,16 +21,22 @@ public:
     virtual void takeStep() {}
 
     // for a given state, evaluate derivative f(X,t)
-    virtual std::map<int, Vector3f> evalF(std::map<int, Vector3f> state) = 0;
+    virtual map<int, Vector3f> evalAccel(map<int, Vector3f> posState, map<int, Vector3f> velState) = 0;
 
     // getter method for the system's state
-    std::map<int, Vector3f> getState() { return m_vVecState; };
+    map<int, Vector3f> getState() { return m_vVecState; };
+    map<int, Vector3f> getPositions() { return posState; };
+    map<int, Vector3f> getVelocities() { return velState; };
 
     // setter method for the system's state
-    void setState(const std::map<int, Vector3f>  & newState) { m_vVecState = newState; };
+    void setState(const map<int, Vector3f>  & newState) { m_vVecState = newState; };
+    void setPositions(const map<int, Vector3f>  & newPosState) { posState = newPosState; };
+    void setVelocities(const map<int, Vector3f>  & newVelState) { velState = newVelState; };
 
  protected:
-    std::map<int, Vector3f> m_vVecState;
+    map<int, Vector3f> m_vVecState;
+    map<int, Vector3f> posState;
+    map<int, Vector3f> velState;
 };
 
 /* GLProgram is a helper for updating uniform variables.
