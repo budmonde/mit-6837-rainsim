@@ -10,6 +10,9 @@ using namespace std;
 class Droplet {
 public:
     Droplet(int idx_, float mass_=1.f);
+    ~Droplet() {};
+
+    static const float STATIC_MASS;
 
     // Add a spring connection to the body
     void print();

@@ -193,7 +193,7 @@ void initSystem()
     default: printf("Unrecognized integrator\n"); exit(-1);
     }
 
-    windowSystem = new WindowSystem(Vector3f(-1.f,-1.f,0));
+    windowSystem = new WindowSystem();
 }
 
 void freeSystem() {
