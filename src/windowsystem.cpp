@@ -23,6 +23,7 @@ WindowSystem::WindowSystem(
     // set object attributes
     gridSize = (int)floor(size / granularity);
     resetIdMap();
+    resetHeightMap();
     maxDropletIdx = -1;
 }
 
@@ -31,6 +32,10 @@ const Vector3f WindowSystem::G_DIR = Vector3f(0.f, -1.f, 0.f);
 
 void WindowSystem::resetIdMap() {
     idMap = vector<vector<int>>(gridSize, vector<int>(gridSize, -1));
+}
+
+void WindowSystem::resetHeightMap() {
+    heightMap = vector<vector<float>>(gridSize, vector<float>(gridSize, 0.f));
 }
 
 void WindowSystem::addDroplet(float mass, Vector3f pos, Vector3f vel) {
@@ -117,6 +122,15 @@ map<int, Vector3f> WindowSystem::evalAccel() {
 
 void WindowSystem::takeStep(float stepSize) {
 
+    // Apply movement to existing droplets
+    map<int, Vector3f> accelState = evalAccel();
+
+    for (const auto& it : droplets) {
+        int i = it.first;
+        posState[i] += velState[i] * stepSize;
+        velState[i] += accelState[i] * stepSize;
+    }
+
     // Generate new droplets
     if (rand_uniform(0.f, 1.f) < raininess) {
         float mass = rand_uniform(dropletSize[0], dropletSize[1]);
@@ -143,15 +157,6 @@ void WindowSystem::takeStep(float stepSize) {
                 droplets[i]->split_time = 0.f;
             }
         }
-    }
-
-    // Apply movement to existing droplets
-    map<int, Vector3f> accelState = evalAccel();
-
-    for (const auto& it : droplets) {
-        int i = it.first;
-        posState[i] += velState[i] * stepSize;
-        velState[i] += accelState[i] * stepSize;
     }
 
     // Delete clipped droplets

@@ -35,6 +35,7 @@ public:
 
     // State Mutators
     void resetIdMap();
+    void resetHeightMap();
     void addDroplet(float mass, Vector3f pos, Vector3f vel);
     void takeStep(float stepSize) override;
 
@@ -59,7 +60,7 @@ protected:
     int gridSize;                   // number of cells in a row
 
     vector<vector<int>> idMap;
-    vector<vector<int>> heightMap;
+    vector<vector<float>> heightMap;
 
     // Droplet Represenation
     float raininess;                // probability of a droplet appearing on the grid
