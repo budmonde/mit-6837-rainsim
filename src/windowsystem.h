@@ -17,20 +17,29 @@ public:
     WindowSystem(
             Vector3f origin_ = Vector3f(-2.5f, -2.5f, 0.f),
             float size_ = 5.f,
-            float granularity_ = 0.5f,
-            float raininess_ = 0.3f,
-            vector<float> droplet_sz = vector<float>({0.f, 2.f})
+            float granularity_ = 0.1f,
+            float raininess_ = 0.005f,
+            vector<float> dropletSize_ = vector<float>({1.f, 2.f})
             );
+
+    static const float G_NORM;
+    static const Vector3f G_DIR;
+
+
+    Vector3f collisionVelocity(int i, int j);
 
     vector<int> getGridIdx(Vector3f pos);
     vector<int> clipIdx(vector<int> idx);
 
     void resetIDMap();
     void debugIDMap();
+    void debugDroplets();
 
-    void takeStep() override;
+    void addDroplet(float mass, Vector3f pos, Vector3f vel);
 
-    map<int, Vector3f> evalAccel(map<int, Vector3f> posState, map<int, Vector3f> velState) override;
+    void takeStep(float stepSize) override;
+
+    map<int, Vector3f> evalAccel() override;
 
     // draw is called once per frame
     void draw(GLProgram& ctx);
@@ -43,12 +52,12 @@ protected:
 
     float size;
     float granularity;
-    int maxGridIdx;
+    int gridSize;
 
     vector<vector<int>> IDMap;
 
     float raininess;
-    vector<float> droplet_sz;
+    vector<float> dropletSize;
 
     map<int, Droplet *> droplets;
     int maxDropletIdx;

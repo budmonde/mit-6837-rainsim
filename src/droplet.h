@@ -12,6 +12,9 @@ public:
     Droplet(int idx_, float mass_=1.f);
     ~Droplet() {};
 
+    float splitProb(float stepSize);
+
+    static const float MAX_SPLIT_TIME;
     static const float STATIC_MASS;
 
     // Add a spring connection to the body
@@ -20,6 +23,7 @@ public:
     // representation
     int idx;
     float mass;
+    float split_time;
 };
 
 #endif

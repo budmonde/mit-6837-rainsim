@@ -6,31 +6,32 @@
 #include "camera.h"
 #include "vertexrecorder.h"
 
-const float GRAVITY = 1.f;
-
 WindowSystem::WindowSystem(
         Vector3f origin_,
         float size_,
         float granularity_,
         float raininess_,
-        vector<float> droplet_sz_) :
+        vector<float> dropletSize_) :
     origin(origin_),
     size(size_),
     granularity(granularity_),
     raininess(raininess_),
-    droplet_sz(droplet_sz_) {
+    dropletSize(dropletSize_) {
     // initing random seed
     srand(time(0));
 
-    maxGridIdx = (int)floor(size / granularity);
+    gridSize = (int)floor(size / granularity);
 
     resetIDMap();
 
     maxDropletIdx = -1;
 }
 
+const float WindowSystem::G_NORM = 1.f;
+const Vector3f WindowSystem::G_DIR = Vector3f(0.f, -1.f, 0.f);
+
 void WindowSystem::resetIDMap() {
-    IDMap = vector<vector<int>>(maxGridIdx, vector<int>(maxGridIdx, -1));
+    IDMap = vector<vector<int>>(gridSize, vector<int>(gridSize, -1));
 }
 
 void WindowSystem::debugIDMap() {
@@ -45,19 +46,65 @@ void WindowSystem::debugIDMap() {
     }
 }
 
-void WindowSystem::takeStep() {
+void WindowSystem::debugDroplets() {
+    cout << "###Droplets Debug###" << endl << endl;
+    for (const auto& it : droplets) {
+        int i = it.first;
+        cout << "\t";
+        droplets[i]->print();
+        cout << "\t";
+        posState[i].print();
+        cout << "\t";
+        velState[i].print();
+        cout << endl;
+    }
+}
 
-    // Droplet Generation
+void WindowSystem::addDroplet(float mass, Vector3f pos, Vector3f vel) {
+    ++maxDropletIdx;
+    int droplet_idx = maxDropletIdx;
+    droplets.insert(pair <int, Droplet *> (droplet_idx, new Droplet(droplet_idx, mass)));
+    posState.insert(pair <int, Vector3f> (droplet_idx, pos));
+    velState.insert(pair <int, Vector3f> (droplet_idx, vel));
+}
+
+void WindowSystem::takeStep(float stepSize) {
+
+    // Generate new droplets
     if (rand_uniform(0.f, 1.f) < raininess) {
-        ++maxDropletIdx;
-        int droplet_idx = maxDropletIdx;
-        float mass = rand_uniform(droplet_sz[0], droplet_sz[1]);
+        float mass = rand_uniform(dropletSize[0], dropletSize[1]);
         Vector3f pos = Vector3f(rand_uniform(0.f, size), rand_uniform(0.f, size), 0.f);
-        //Vector3f pos = Vector3f(size/2, rand_uniform(0.f, size), 0.f);
+        Vector3f vel = Vector3f::ZERO;
+        addDroplet(mass, pos, vel);
+    }
 
-        droplets.insert(pair <int, Droplet *> (droplet_idx, new Droplet(droplet_idx, mass)));
-        posState.insert(pair <int, Vector3f> (droplet_idx, pos));
-        velState.insert(pair <int, Vector3f> (droplet_idx, Vector3f::ZERO));
+    // Generate residual droplets
+    for (const auto& it : droplets) {
+        int i = it.first;
+        if (droplets[i]->mass >= droplets[i]->STATIC_MASS) {
+            droplets[i]->split_time += stepSize;
+            if (rand_uniform(0.f, 1.f) < droplets[i]->splitProb(stepSize)) {
+                // add new droplet
+                float mass = min(droplets[i]->STATIC_MASS, rand_uniform(0.1f, 0.3f)*droplets[i]->mass);
+                // TODO: magic number
+                Vector3f pos = posState[i] - velState[i] * stepSize * 20;
+                Vector3f vel = Vector3f::ZERO;
+                addDroplet(mass, pos, vel);
+
+                // update OG droplet
+                droplets[i]->mass -= mass;
+                droplets[i]->split_time = 0.f;
+            }
+        }
+    }
+
+    // Apply movement to existing droplets
+    map<int, Vector3f> accelState = evalAccel();
+
+    for (const auto& it : droplets) {
+        int i = it.first;
+        posState[i] += velState[i] * stepSize;
+        velState[i] += accelState[i] * stepSize;
     }
 
     // Delete clipped droplets
@@ -73,7 +120,7 @@ void WindowSystem::takeStep() {
         }
     }
 
-    // Update IDMap
+    // Update IDMap and detect merging
     resetIDMap();
     vector<int> toErase;
     for (const auto& it : droplets) {
@@ -86,11 +133,9 @@ void WindowSystem::takeStep() {
         } else {
             // combine droplet into pre-existing droplet
             droplets[dropletIdx]->mass += droplets[i]->mass;
-            // TODO: do actual collision equation for new velocity calculation
-            velState[dropletIdx] =
-                velState[i].abs() > velState[dropletIdx].abs() ? velState[i] : velState[dropletIdx];
             posState[dropletIdx] =
                 posState[i].y() < posState[dropletIdx].y() ? posState[i] : posState[dropletIdx];
+            velState[dropletIdx] = collisionVelocity(i, dropletIdx);
             toErase.push_back(i);
         }
     }
@@ -102,26 +147,43 @@ void WindowSystem::takeStep() {
     }
 }
 
-map<int, Vector3f> WindowSystem::evalAccel(map<int, Vector3f> posState, map<int, Vector3f> velState) {
+Vector3f WindowSystem::collisionVelocity(int i, int j) {
+    float mi = droplets[i]->mass,
+          mj = droplets[j]->mass,
+          vi = velState[i].abs(),
+          vj = velState[j].abs();
+    float velNorm = sqrt((mi*vi*vi+mj*vj*vj)/(mi+mj));
+    Vector3f velDir = (velState[i] + velState[j]);
+    velDir = velDir == Vector3f::ZERO ? Vector3f::ZERO : velDir.normalized();
+    return velDir*velNorm;
+}
+
+map<int, Vector3f> WindowSystem::evalAccel() {
     map<int, Vector3f> accel;
     for (const auto& it : droplets) {
         int i = it.first;
-        float accelNorm = 0.f;
-        accelNorm += GRAVITY * droplets[i]->mass;
-        accelNorm += -GRAVITY * min(droplets[i]->mass, droplets[i]->STATIC_MASS);
-        accelNorm /= droplets[i]->mass;
 
+        // calculate external forces
+        Vector3f extAccel = Vector3f::ZERO;
+        extAccel += G_DIR * G_NORM * droplets[i]->mass;
+        if (velState[i] != Vector3f::ZERO)
+            extAccel += -velState[i].normalized() * G_NORM * droplets[i]->STATIC_MASS;
+        else
+            extAccel += G_DIR * G_NORM * droplets[i]->mass;
+        extAccel /= droplets[i]->mass;
+
+        // calculate droplet "tug" forces
         vector<int> gridIdx = getGridIdx(posState[i]);
 
         float maxMass = 0.f;
         int bestX = (int)floor(rand_uniform(0.f, 3.f));
+
         for (int x=0; x < 3; ++x) {
 
             vector<int> gi({gridIdx[0]-2, gridIdx[1]-3+x*2});
             vector<int> gr({gi[0]+3, gi[1]+3});
             vector<int> clipped_gi = clipIdx(gi);
             vector<int> clipped_gr = clipIdx(gr);
-
 
             float mass = 0.f;
             for (int fy=clipped_gi[0]; fy < clipped_gr[0]; ++fy) {
@@ -137,9 +199,9 @@ map<int, Vector3f> WindowSystem::evalAccel(map<int, Vector3f> posState, map<int,
             }
         }
 
-        Vector3f accelDir = -Vector3f::UP + Vector3f::RIGHT * (bestX - 1);
-
-        accel[i] = accelDir * accelNorm;
+        Vector3f accelDir = Vector3f::RIGHT * (bestX - 1);
+        float accelNorm = 1.f;
+        accel[i] = accelDir * accelNorm + extAccel;
     }
     return accel;
 }
@@ -153,8 +215,8 @@ vector<int> WindowSystem::getGridIdx(Vector3f pos) {
 
 vector<int> WindowSystem::clipIdx(vector<int> idx) {
     return vector<int>({
-            max(min(idx[0],maxGridIdx),0),
-            max(min(idx[1],maxGridIdx),0),
+            max(min(idx[0],gridSize-1),0),
+            max(min(idx[1],gridSize-1),0),
     });
 }
 
@@ -167,7 +229,7 @@ void WindowSystem::draw(GLProgram& gl) {
     for (const auto& it : droplets) {
         int i = it.first;
         gl.updateModelMatrix(Matrix4f::translation(origin+posState[i]));
-        drawSphere(0.075f, 10, 10);
+        drawSphere(cbrt(droplets[i]->mass*.0005f), 10, 10);
     }
     rec.draw();
 }

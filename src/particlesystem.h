@@ -18,20 +18,11 @@ public:
     virtual ~ParticleSystem() {}
 
     // take a step
-    virtual void takeStep() {}
+    virtual void takeStep(float stepSize) {}
 
     // for a given state, evaluate derivative f(X,t)
-    virtual map<int, Vector3f> evalAccel(map<int, Vector3f> posState, map<int, Vector3f> velState) = 0;
+    virtual map<int, Vector3f> evalAccel() = 0;
 
-    // getter method for the system's state
-    map<int, Vector3f> getState() { return m_vVecState; };
-    map<int, Vector3f> getPositions() { return posState; };
-    map<int, Vector3f> getVelocities() { return velState; };
-
-    // setter method for the system's state
-    void setState(const map<int, Vector3f>  & newState) { m_vVecState = newState; };
-    void setPositions(const map<int, Vector3f>  & newPosState) { posState = newPosState; };
-    void setVelocities(const map<int, Vector3f>  & newVelState) { velState = newVelState; };
 
  protected:
     map<int, Vector3f> m_vVecState;
