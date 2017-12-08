@@ -9,15 +9,18 @@ using namespace std;
 
 class Droplet {
 public:
+    // Constructor, Destructor
     Droplet(int idx_, float mass_=1.f);
     ~Droplet() {};
 
-    float splitProb(float stepSize);
-
+    // Static Constants
     static const float MAX_SPLIT_TIME;
     static const float STATIC_MASS;
 
-    // Add a spring connection to the body
+    // Helper Observers
+    float splitProb(float stepSize);
+
+    // Debug Helpers
     void print();
 
     // representation
