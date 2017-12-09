@@ -16,8 +16,8 @@ public:
     WindowSystem(
             Vector3f origin_ = Vector3f(-2.5f, -2.5f, 0.f),
             float size_ = 5.f,
-            float granularity_ = 0.1f,
-            float raininess_ = 0.005f,
+            float granularity_ = 0.05f,
+            float raininess_ = 0.05f,
             vector<float> dropletSize_ = vector<float>({1.f, 2.f})
             );
     ~WindowSystem() {};
@@ -29,7 +29,10 @@ public:
 
     // Helper Observers
     Vector3f collisionVelocity(int i, int j);
+
     vector<int> getGridIdx(Vector3f pos);
+    Vector3f getGridPos(vector<int> idx);
+
     vector<int> clipIdx(vector<int> idx);
     map<int, Vector3f> evalAccel() override;
 
@@ -39,11 +42,15 @@ public:
     void addDroplet(float mass, Vector3f pos, Vector3f vel);
     void takeStep(float stepSize) override;
 
+    void blurHeightMap(int kernel_sz=3, float epsilon=0.01f);
+
     // Debug Helpers
     void debugIdMap();
+    void debugHeightMap();
     void debugDroplets();
 
     // OpenGL function
+    Vector3f computeNormal(int y, int x);
     void draw(GLProgram& ctx);
 
 protected:

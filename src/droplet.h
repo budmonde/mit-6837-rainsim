@@ -19,6 +19,7 @@ public:
 
     // Helper Observers
     float splitProb(float stepSize);
+    float radius();
 
     // Debug Helpers
     void print();

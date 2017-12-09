@@ -65,6 +65,10 @@ vector<int> WindowSystem::getGridIdx(Vector3f pos) {
     });
 }
 
+Vector3f WindowSystem::getGridPos(vector<int> idx) {
+    return Vector3f(granularity*(idx[1]+0.5f), granularity*(idx[0]+0.5f), 0.f);
+}
+
 vector<int> WindowSystem::clipIdx(vector<int> idx) {
     return vector<int>({
             max(min(idx[0],gridSize-1),0),
@@ -172,6 +176,28 @@ void WindowSystem::takeStep(float stepSize) {
         }
     }
 
+    // Construct Height Map
+    for (const auto& it : droplets) {
+        int i = it.first;
+        float r = droplets[i]->radius();
+        float rSq = r*r;
+        vector<int> lo = clipIdx(getGridIdx(posState[i] + Vector3f(-r, -r, 0.f)));
+        vector<int> hi = clipIdx(getGridIdx(posState[i] + Vector3f(r, r, 0.f)));
+        for (int y=lo[0]; y < hi[0]; ++y) {
+            for (int x=lo[1]; x < hi[1]; ++x) {
+                float heightSq = rSq - (getGridPos(vector<int>({y, x})) - posState[i]).absSquared();
+                if (heightSq > 0 && heightSq > pow(heightMap[y][x],2))
+                    heightMap[y][x] = sqrt(heightSq);
+            }
+        }
+    }
+
+    // Blur Height Map
+    cout << "START" << endl;
+    debugHeightMap();
+    blurHeightMap();
+    debugHeightMap();
+
     // Update idMap and detect merging
     resetIdMap();
     vector<int> toErase;
@@ -199,12 +225,52 @@ void WindowSystem::takeStep(float stepSize) {
     }
 }
 
+void WindowSystem::blurHeightMap(int kernel_sz, float epsilon) {
+    for (int y=0; y<gridSize; ++y) {
+        for (int x=0; x<gridSize; ++x) {
+            float newHeight = 0.f;
+            for (int fx=0; fx<kernel_sz; ++fx) {
+                int xx = min(gridSize-1, x+fx);
+                newHeight += heightMap[y][xx];
+            }
+            heightMap[y][x] = newHeight / kernel_sz;
+        }
+    }
+    for (int y=0; y<gridSize; ++y) {
+        for (int x=0; x<gridSize; ++x) {
+            float newHeight = 0.f;
+            for (int fy=0; fy<kernel_sz; ++fy) {
+                int yy = min(gridSize-1, y+fy);
+                newHeight += heightMap[yy][x];
+            }
+            heightMap[y][x] = newHeight / kernel_sz;
+        }
+    }
+    for (int y=0; y<gridSize; ++y) {
+        for (int x=0; x<gridSize; ++x) {
+            heightMap[y][x] = heightMap[y][x] >= epsilon ? heightMap[y][x] : 0.f;
+        }
+    }
+}
+
 void WindowSystem::debugIdMap() {
     cout << "Height: " << idMap.size() << endl;
     cout << "Width: " << idMap[0].size() << endl;
 
     for (int y=idMap.size()-1; y >= 0; --y) {
         for (int cell : idMap[y]) {
+            cout << cell << " ";
+        }
+        cout << endl;
+    }
+}
+
+void WindowSystem::debugHeightMap() {
+    cout << "Height: " << heightMap.size() << endl;
+    cout << "Width: " << heightMap[0].size() << endl;
+
+    for (int y=heightMap.size()-1; y >= 0; --y) {
+        for (float cell : heightMap[y]) {
             cout << cell << " ";
         }
         cout << endl;
@@ -225,18 +291,49 @@ void WindowSystem::debugDroplets() {
     }
 }
 
+Vector3f WindowSystem::computeNormal(int y, int x) {
+    float heightDiff[2] = {
+        heightMap[y][min(x+1,gridSize-1)] - heightMap[y][max(x-1,0)],
+        heightMap[min(y+1,gridSize-1)][x] - heightMap[max(y-1,0)][x]
+    };
+    Vector3f a = Vector3f(granularity*2, 0.f, heightDiff[0]);
+    Vector3f b = Vector3f(0.f, granularity*2, heightDiff[1]);
+    Vector3f out = Vector3f::cross(a,b).normalized();
+    return out;
+}
+
 
 void WindowSystem::draw(GLProgram& gl) {
     const Vector3f DROPLET_COLOR(0.9f, 0.9f, 0.9f);
     gl.updateMaterial(DROPLET_COLOR);
-    gl.updateModelMatrix(Matrix4f::translation(origin));
+    //gl.updateModelMatrix(Matrix4f::translation(origin));
 
-    VertexRecorder rec;
-    for (const auto& it : droplets) {
-        int i = it.first;
-        gl.updateModelMatrix(Matrix4f::translation(origin+posState[i]));
-        drawSphere(cbrt(droplets[i]->mass*.0005f), 10, 10);
+    //VertexRecorder rec;
+    //for (const auto& it : droplets) {
+    //    int i = it.first;
+    //    gl.updateModelMatrix(Matrix4f::translation(origin+posState[i]-Vector3f::FORWARD));
+    //    drawSphere(cbrt(droplets[i]->mass*.0005f), 10, 10);
+    //}
+    //rec.draw();
+
+    gl.updateModelMatrix(Matrix4f::translation(origin));
+    VertexRecorder rec2;
+    for (int y=1; y < gridSize; ++y) {
+        for (int x=1; x < gridSize; ++x) {
+
+            Vector3f d = getGridPos(vector<int>({y,x})) - Vector3f::FORWARD*heightMap[y][x];
+            Vector3f c = getGridPos(vector<int>({y,x-1})) - Vector3f::FORWARD*heightMap[y][x-1];
+            Vector3f b = getGridPos(vector<int>({y-1,x})) - Vector3f::FORWARD*heightMap[y-1][x];
+            Vector3f a = getGridPos(vector<int>({y-1,x-1})) - Vector3f::FORWARD*heightMap[y-1][x-1];
+            rec2.record(d, computeNormal(y,x));
+            rec2.record(b, computeNormal(y-1,x));
+            rec2.record(a, computeNormal(y-1,x-1));
+
+            rec2.record(d, computeNormal(y,x));
+            rec2.record(a, computeNormal(y-1,x-1));
+            rec2.record(c, computeNormal(y,x-1));
+        }
     }
-    rec.draw();
+    rec2.draw();
 }
 

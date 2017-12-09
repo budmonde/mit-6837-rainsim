@@ -13,6 +13,10 @@ float Droplet::splitProb(float stepSize) {
     return min(1.f, 3.f*stepSize/MAX_SPLIT_TIME*min(1.f, split_time/MAX_SPLIT_TIME));
 }
 
+float Droplet::radius() {
+    return cbrt(mass*.0005f);
+}
+
 void Droplet::print() {
     cout << "Droplet " << idx << " with mass " << mass << " at " << this << endl;
 }
