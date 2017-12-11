@@ -198,18 +198,17 @@ void WindowSystem::takeStep(float stepSize) {
                 if (heightSq > 0 && heightSq > pow(heightMap[y][x],2)) {
                     heightMap[y][x] = sqrt(heightSq);
                     if (idMap[y][x] != -1) {
+                        int setIdx;
                         if (setLookupTable.find(idMap[y][x]) == setLookupTable.end()) {
                             toMerge.push_back(set<int>());
-                            int setIdx = toMerge.size() - 1;
-                            toMerge[setIdx].insert(idMap[y][x]);
-                            toMerge[setIdx].insert(i);
-                            setLookupTable[idMap[y][x]] = setIdx;
-                            setLookupTable[i] = setIdx;
+                            setIdx = toMerge.size() - 1;
                         } else {
-                            int setIdx = setLookupTable[idMap[y][x]];
-                            toMerge[setIdx].insert(i);
-                            setLookupTable[i] = setIdx;
+                            setIdx = setLookupTable[idMap[y][x]];
                         }
+                        toMerge[setIdx].insert(idMap[y][x]);
+                        toMerge[setIdx].insert(i);
+                        setLookupTable[idMap[y][x]] = setIdx;
+                        setLookupTable[i] = setIdx;
                     }
                     idMap[y][x] = i;
                 }
@@ -229,26 +228,46 @@ void WindowSystem::takeStep(float stepSize) {
         Vector3f pos(0.f, FLT_MAX, 0.f);
         Vector3f vel = Vector3f::ZERO;
         for (const auto& idx : blob) {
-            //cout << idx << " ";
             mass += droplets[idx]->mass;
             pos = posState[idx].y() < pos.y() ? posState[idx] : pos;
             vel += droplets[idx]->mass * velState[idx];
 
-            //delete droplets[idx];
-            //droplets.erase(idx);
-            //posState.erase(idx);
-            //velState.erase(idx);
+            delete droplets[idx];
+            droplets.erase(idx);
+            posState.erase(idx);
+            velState.erase(idx);
         }
-        int newIdx = maxDropletIdx + 1;
         vel *= 2.f / mass;
         // Init new drops
-        //addDroplet(mass, pos, vel);
+        addDroplet(mass, pos, vel);
+        // Update idMap for the new droplet
+        int i = maxDropletIdx;
+        float r = droplets[i]->radius();
+        float rSq = r*r;
+        vector<int> lo = clipIdx(getGridIdx(posState[i] + Vector3f(-r, -r, 0.f)));
+        vector<int> hi = clipIdx(getGridIdx(posState[i] + Vector3f(r, r, 0.f)));
+        for (int y=lo[0]; y < hi[0]; ++y) {
+            for (int x=lo[1]; x < hi[1]; ++x) {
+                float heightSq = rSq - (getGridPos(vector<int>({y, x})) - posState[i]).absSquared();
+                if (heightSq > 0 && heightSq > pow(heightMap[y][x],2)) {
+                    idMap[y][x] = i;
+                }
+            }
+        }
     }
 
     // Clean up IDMap
     set<int> dirtyIds;
     for (const auto& blob : toMerge) {
         dirtyIds.insert(blob.begin(), blob.end());
+    }
+
+    for (int y=0; y<gridSize; ++y) {
+        for (int x=0; x<gridSize; ++x) {
+            if (dirtyIds.find(idMap[y][x]) != dirtyIds.end()) {
+                idMap[y][x] = -1;
+            }
+        }
     }
 
 
