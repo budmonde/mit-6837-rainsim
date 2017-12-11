@@ -225,9 +225,32 @@ void WindowSystem::takeStep(float stepSize) {
         }
     }
 
-    // TODO: find adjacent idmaps to merge
+    // find adjacent idmaps to merge
     for (int y=1; y<gridSize-1; ++y) {
         for (int x=1; x<gridSize-1; ++x) {
+            if (idMap[y][x] == -1) continue;
+
+            for (int fy=-1; fy<2; ++fy) {
+                for (int fx=-1; fx<2; ++fx) {
+                    if (fy == 0 && fx == 0) continue;
+                    if (idMap[y+fy][x+fx] == -1) continue;
+                    if (idMap[y+fy][x+fx] == idMap[y][x]) continue;
+                    // neighbor merge between the two should happen
+                    int i = idMap[y][x],
+                        j = idMap[y+fy][x+fx];
+                    int setIdx;
+                    if (setLookupTable.find(i) == setLookupTable.end()) {
+                        toMerge.push_back(set<int>());
+                        setIdx = toMerge.size() - 1;
+                    } else {
+                        setIdx = setLookupTable[i];
+                    }
+                    toMerge[setIdx].insert(i);
+                    toMerge[setIdx].insert(j);
+                    setLookupTable[i] = setIdx;
+                    setLookupTable[j] = setIdx;
+                }
+            }
         }
     }
 
@@ -393,13 +416,13 @@ void WindowSystem::draw(GLProgram& gl) {
     gl.updateMaterial(DROPLET_COLOR);
     gl.updateModelMatrix(Matrix4f::translation(origin));
 
-    //VertexRecorder rec;
-    //for (const auto& it : droplets) {
-    //    int i = it.first;
-    //    gl.updateModelMatrix(Matrix4f::translation(origin+posState[i]-Vector3f::FORWARD));
-    //    drawSphere(cbrt(droplets[i]->mass*.0005f), 10, 10);
-    //}
-    //rec.draw();
+    VertexRecorder rec;
+    for (const auto& it : droplets) {
+        int i = it.first;
+        gl.updateModelMatrix(Matrix4f::translation(origin+posState[i]-Vector3f::FORWARD));
+        drawSphere(cbrt(droplets[i]->mass*.0005f), 10, 10);
+    }
+    rec.draw();
 
     //gl.updateModelMatrix(Matrix4f::translation(origin));
     //VertexRecorder rec2;
