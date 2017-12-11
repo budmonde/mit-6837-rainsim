@@ -2,6 +2,7 @@
 
 #include <cfloat>
 #include <iostream>
+#include <iomanip>
 
 #include "camera.h"
 #include "vertexrecorder.h"
@@ -25,6 +26,7 @@ WindowSystem::WindowSystem(
     resetIdMap();
     resetHeightMap();
     maxDropletIdx = -1;
+    frameNo = 0;
 }
 
 const float WindowSystem::G_NORM = 1.f;
@@ -126,6 +128,8 @@ map<int, Vector3f> WindowSystem::evalAccel() {
 
 void WindowSystem::takeStep(float stepSize) {
 
+    ++frameNo;
+
     // Apply movement to existing droplets
     map<int, Vector3f> accelState = evalAccel();
 
@@ -176,7 +180,12 @@ void WindowSystem::takeStep(float stepSize) {
         }
     }
 
-    // Construct Height Map
+    // Construct Height Map and idMap
+    vector<set<int>> toMerge;
+    map<int, int> setLookupTable;
+
+    resetIdMap();
+
     for (const auto& it : droplets) {
         int i = it.first;
         float r = droplets[i]->radius();
@@ -186,43 +195,105 @@ void WindowSystem::takeStep(float stepSize) {
         for (int y=lo[0]; y < hi[0]; ++y) {
             for (int x=lo[1]; x < hi[1]; ++x) {
                 float heightSq = rSq - (getGridPos(vector<int>({y, x})) - posState[i]).absSquared();
-                if (heightSq > 0 && heightSq > pow(heightMap[y][x],2))
+                if (heightSq > 0 && heightSq > pow(heightMap[y][x],2)) {
                     heightMap[y][x] = sqrt(heightSq);
+                    if (idMap[y][x] != -1) {
+                        if (setLookupTable.find(idMap[y][x]) == setLookupTable.end()) {
+                            toMerge.push_back(set<int>());
+                            int setIdx = toMerge.size() - 1;
+                            toMerge[setIdx].insert(idMap[y][x]);
+                            toMerge[setIdx].insert(i);
+                            setLookupTable[idMap[y][x]] = setIdx;
+                            setLookupTable[i] = setIdx;
+                        } else {
+                            int setIdx = setLookupTable[idMap[y][x]];
+                            toMerge[setIdx].insert(i);
+                            setLookupTable[i] = setIdx;
+                        }
+                    }
+                    idMap[y][x] = i;
+                }
             }
         }
     }
 
-    // Blur Height Map
-    cout << "START" << endl;
-    debugHeightMap();
-    blurHeightMap();
-    debugHeightMap();
-
-    // Update idMap and detect merging
-    resetIdMap();
-    vector<int> toErase;
-    for (const auto& it : droplets) {
-        int i = it.first;
-        Vector3f pos = posState[i];
-        vector<int> gridIdx = getGridIdx(pos);
-        int dropletIdx = idMap[gridIdx[0]][gridIdx[1]];
-        if (dropletIdx == -1) {
-            idMap[gridIdx[0]][gridIdx[1]] = i;
-        } else {
-            // combine droplet into pre-existing droplet
-            droplets[dropletIdx]->mass += droplets[i]->mass;
-            posState[dropletIdx] =
-                posState[i].y() < posState[dropletIdx].y() ? posState[i] : posState[dropletIdx];
-            velState[dropletIdx] = collisionVelocity(i, dropletIdx);
-            toErase.push_back(i);
+    // TODO: find adjacent idmaps to merge
+    for (int y=1; y<gridSize-1; ++y) {
+        for (int x=1; x<gridSize-1; ++x) {
         }
     }
-    for (int i : toErase) {
-        delete droplets[i];
-        droplets.erase(i);
-        posState.erase(i);
-        velState.erase(i);
+
+    for (const auto& blob : toMerge) {
+        // Calculate state for new droplet
+        float mass = 0.f;
+        Vector3f pos(0.f, FLT_MAX, 0.f);
+        Vector3f vel = Vector3f::ZERO;
+        for (const auto& idx : blob) {
+            //cout << idx << " ";
+            mass += droplets[idx]->mass;
+            pos = posState[idx].y() < pos.y() ? posState[idx] : pos;
+            vel += droplets[idx]->mass * velState[idx];
+
+            //delete droplets[idx];
+            //droplets.erase(idx);
+            //posState.erase(idx);
+            //velState.erase(idx);
+        }
+        int newIdx = maxDropletIdx + 1;
+        vel *= 2.f / mass;
+        // Init new drops
+        //addDroplet(mass, pos, vel);
     }
+
+    // Clean up IDMap
+    set<int> dirtyIds;
+    for (const auto& blob : toMerge) {
+        dirtyIds.insert(blob.begin(), blob.end());
+    }
+
+
+    // Blur Height Map
+    blurHeightMap();
+
+    // Store Height Map
+    Image im(gridSize, gridSize, 1);
+    for (int y=0; y<gridSize; ++y) {
+        for (int x=0; x<gridSize; ++x) {
+            im(x,gridSize-1-y) = heightMap[y][x] * 20;
+        }
+    }
+    ostringstream fname;
+    fname << "../Output/heightmap";
+    fname << setfill('0') << setw(4);
+    fname << frameNo;
+    fname << ".png";
+    im.write(fname.str());
+
+    // Update idMap and detect merging
+    //resetIdMap();
+    //vector<int> toErase;
+    //for (const auto& it : droplets) {
+    //    int i = it.first;
+    //    Vector3f pos = posState[i];
+    //    vector<int> gridIdx = getGridIdx(pos);
+    //    int dropletIdx = idMap[gridIdx[0]][gridIdx[1]];
+    //    if (dropletIdx == -1) {
+    //        idMap[gridIdx[0]][gridIdx[1]] = i;
+    //    } else {
+    //        // combine droplet into pre-existing droplet
+    //        droplets[dropletIdx]->mass += droplets[i]->mass;
+    //        posState[dropletIdx] =
+    //            posState[i].y() < posState[dropletIdx].y() ? posState[i] : posState[dropletIdx];
+    //        velState[dropletIdx] = collisionVelocity(i, dropletIdx);
+    //        toErase.push_back(i);
+    //    }
+    //}
+    //for (int i : toErase) {
+    //    delete droplets[i];
+    //    droplets.erase(i);
+    //    posState.erase(i);
+    //    velState.erase(i);
+    //}
 }
 
 void WindowSystem::blurHeightMap(int kernel_sz, float epsilon) {
@@ -306,15 +377,15 @@ Vector3f WindowSystem::computeNormal(int y, int x) {
 void WindowSystem::draw(GLProgram& gl) {
     const Vector3f DROPLET_COLOR(0.9f, 0.9f, 0.9f);
     gl.updateMaterial(DROPLET_COLOR);
-    //gl.updateModelMatrix(Matrix4f::translation(origin));
+    gl.updateModelMatrix(Matrix4f::translation(origin));
 
-    //VertexRecorder rec;
-    //for (const auto& it : droplets) {
-    //    int i = it.first;
-    //    gl.updateModelMatrix(Matrix4f::translation(origin+posState[i]-Vector3f::FORWARD));
-    //    drawSphere(cbrt(droplets[i]->mass*.0005f), 10, 10);
-    //}
-    //rec.draw();
+    VertexRecorder rec;
+    for (const auto& it : droplets) {
+        int i = it.first;
+        gl.updateModelMatrix(Matrix4f::translation(origin+posState[i]-Vector3f::FORWARD));
+        drawSphere(cbrt(droplets[i]->mass*.0005f), 10, 10);
+    }
+    rec.draw();
 
     gl.updateModelMatrix(Matrix4f::translation(origin));
     VertexRecorder rec2;

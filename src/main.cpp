@@ -12,6 +12,7 @@
 #include "camera.h"
 #include "timestepper.h"
 #include "windowsystem.h"
+#include "Image.h"
 
 using namespace std;
 

@@ -2,11 +2,13 @@
 #define WINDOWSYSTEM_H
 
 #include <map>
+#include <set>
 #include <vector>
 #include <vecmath.h>
 
 #include "droplet.h"
 #include "particlesystem.h"
+#include "Image.h"
 
 using namespace std;
 
@@ -16,7 +18,7 @@ public:
     WindowSystem(
             Vector3f origin_ = Vector3f(-2.5f, -2.5f, 0.f),
             float size_ = 5.f,
-            float granularity_ = 0.05f,
+            float granularity_ = 0.1f,
             float raininess_ = 0.05f,
             vector<float> dropletSize_ = vector<float>({1.f, 2.f})
             );
@@ -75,6 +77,8 @@ protected:
 
     map<int, Droplet *> droplets;
     int maxDropletIdx;
+
+    int frameNo;
 };
 
 

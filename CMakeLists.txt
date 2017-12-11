@@ -55,6 +55,8 @@ list (APPEND A3_SRC
   src/timestepper.cpp
   src/particlesystem.cpp
   src/droplet.cpp
+  src/Image.cpp
+  src/lodepng.cpp
 )
 list (APPEND A3_HEADER
   src/gl.h
@@ -65,6 +67,9 @@ list (APPEND A3_HEADER
   src/timestepper.h
   src/particlesystem.h
   src/droplet.h
+  src/Image.h
+  src/ImageException.h
+  src/lodepng.h
 )
 
 add_executable(a3 ${A3_SRC} ${A3_HEADER})
