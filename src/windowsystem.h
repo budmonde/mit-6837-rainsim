@@ -18,7 +18,7 @@ public:
     WindowSystem(
             Vector3f origin_ = Vector3f(-2.5f, -2.5f, 0.f),
             float size_ = 5.f,
-            float granularity_ = 0.1f,
+            float granularity_ = 0.005f,
             float raininess_ = 0.05f,
             vector<float> dropletSize_ = vector<float>({1.f, 2.f})
             );
@@ -30,8 +30,6 @@ public:
     static const Vector3f G_DIR;
 
     // Helper Observers
-    Vector3f collisionVelocity(int i, int j);
-
     vector<int> getGridIdx(Vector3f pos);
     Vector3f getGridPos(vector<int> idx);
 
@@ -41,14 +39,15 @@ public:
     // State Mutators
     void resetIdMap();
     void resetHeightMap();
+    void resetAffinityMap();
     void addDroplet(float mass, Vector3f pos, Vector3f vel);
     void takeStep(float stepSize) override;
-
     void blurHeightMap(int kernel_sz=3, float epsilon=0.01f);
 
     // Debug Helpers
     void debugIdMap();
     void debugHeightMap();
+    void debugAffinityMap();
     void debugDroplets();
 
     // OpenGL function
@@ -70,6 +69,7 @@ protected:
 
     vector<vector<int>> idMap;
     vector<vector<float>> heightMap;
+    vector<vector<float>> affinityMap;
 
     // Droplet Represenation
     float raininess;                // probability of a droplet appearing on the grid

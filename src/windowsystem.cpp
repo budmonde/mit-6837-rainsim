@@ -18,6 +18,7 @@ WindowSystem::WindowSystem(
     granularity(granularity_),
     raininess(raininess_),
     dropletSize(dropletSize_) {
+
     // initing random seed
     srand(time(0));
 
@@ -25,6 +26,7 @@ WindowSystem::WindowSystem(
     gridSize = (int)floor(size / granularity);
     resetIdMap();
     resetHeightMap();
+    resetAffinityMap();
     maxDropletIdx = -1;
     frameNo = 0;
 }
@@ -40,24 +42,21 @@ void WindowSystem::resetHeightMap() {
     heightMap = vector<vector<float>>(gridSize, vector<float>(gridSize, 0.f));
 }
 
+void WindowSystem::resetAffinityMap() {
+    affinityMap = vector<vector<float>>(gridSize, vector<float>(gridSize, 0.f));
+    for (int y=0; y<gridSize; ++y) {
+        for (int x=0; x<gridSize; ++x) {
+            affinityMap[y][x] = rand_uniform(0.f, 1.f);
+        }
+    }
+}
+
 void WindowSystem::addDroplet(float mass, Vector3f pos, Vector3f vel) {
     ++maxDropletIdx;
     int droplet_idx = maxDropletIdx;
     droplets.insert(pair <int, Droplet *> (droplet_idx, new Droplet(droplet_idx, mass)));
     posState.insert(pair <int, Vector3f> (droplet_idx, pos));
     velState.insert(pair <int, Vector3f> (droplet_idx, vel));
-}
-
-
-Vector3f WindowSystem::collisionVelocity(int i, int j) {
-    float mi = droplets[i]->mass,
-          mj = droplets[j]->mass,
-          vi = velState[i].abs(),
-          vj = velState[j].abs();
-    float velNorm = sqrt((mi*vi*vi+mj*vj*vj)/(mi+mj));
-    Vector3f velDir = (velState[i] + velState[j]);
-    velDir = velDir == Vector3f::ZERO ? Vector3f::ZERO : velDir.normalized();
-    return velDir*velNorm;
 }
 
 vector<int> WindowSystem::getGridIdx(Vector3f pos) {
@@ -96,8 +95,11 @@ map<int, Vector3f> WindowSystem::evalAccel() {
         vector<int> gridIdx = getGridIdx(posState[i]);
 
         float maxMass = 0.f;
+        float maxAffinity = 0.f;
         int bestX = (int)floor(rand_uniform(0.f, 3.f));
+        int bestAX = (int)floor(rand_uniform(0.f, 3.f));
 
+        // check which direction has more water
         for (int x=0; x < 3; ++x) {
 
             vector<int> gi({gridIdx[0]-2, gridIdx[1]-3+x*2});
@@ -106,17 +108,24 @@ map<int, Vector3f> WindowSystem::evalAccel() {
             vector<int> clipped_gr = clipIdx(gr);
 
             float mass = 0.f;
+            float affinity = 0.f;
             for (int fy=clipped_gi[0]; fy < clipped_gr[0]; ++fy) {
                 for (int fx=clipped_gi[1]; fx < clipped_gr[1]; ++fx) {
-                    if (idMap[fy][fx] != -1) {
-                        mass += droplets[idMap[fy][fx]]->mass;
-                    }
+                    mass += heightMap[fy][fx];
+                    affinity += affinityMap[fy][fx];
                 }
             }
             if (mass > maxMass) {
                 maxMass = mass;
                 bestX = x;
             }
+            if (affinity > maxAffinity) {
+                maxAffinity = affinity;
+                bestAX = x;
+            }
+        }
+        if (maxMass == 0.f) {
+            bestX = bestAX;
         }
 
         Vector3f accelDir = Vector3f::RIGHT * (bestX - 1);
@@ -270,7 +279,6 @@ void WindowSystem::takeStep(float stepSize) {
         }
     }
 
-
     // Blur Height Map
     blurHeightMap();
 
@@ -288,31 +296,6 @@ void WindowSystem::takeStep(float stepSize) {
     fname << ".png";
     im.write(fname.str());
 
-    // Update idMap and detect merging
-    //resetIdMap();
-    //vector<int> toErase;
-    //for (const auto& it : droplets) {
-    //    int i = it.first;
-    //    Vector3f pos = posState[i];
-    //    vector<int> gridIdx = getGridIdx(pos);
-    //    int dropletIdx = idMap[gridIdx[0]][gridIdx[1]];
-    //    if (dropletIdx == -1) {
-    //        idMap[gridIdx[0]][gridIdx[1]] = i;
-    //    } else {
-    //        // combine droplet into pre-existing droplet
-    //        droplets[dropletIdx]->mass += droplets[i]->mass;
-    //        posState[dropletIdx] =
-    //            posState[i].y() < posState[dropletIdx].y() ? posState[i] : posState[dropletIdx];
-    //        velState[dropletIdx] = collisionVelocity(i, dropletIdx);
-    //        toErase.push_back(i);
-    //    }
-    //}
-    //for (int i : toErase) {
-    //    delete droplets[i];
-    //    droplets.erase(i);
-    //    posState.erase(i);
-    //    velState.erase(i);
-    //}
 }
 
 void WindowSystem::blurHeightMap(int kernel_sz, float epsilon) {
@@ -367,6 +350,18 @@ void WindowSystem::debugHeightMap() {
     }
 }
 
+void WindowSystem::debugAffinityMap() {
+    cout << "Height: " << affinityMap.size() << endl;
+    cout << "Width: " << affinityMap[0].size() << endl;
+
+    for (int y=affinityMap.size()-1; y >= 0; --y) {
+        for (float cell : affinityMap[y]) {
+            cout << cell << " ";
+        }
+        cout << endl;
+    }
+}
+
 void WindowSystem::debugDroplets() {
     cout << "###Droplets Debug###" << endl << endl;
     for (const auto& it : droplets) {
@@ -398,32 +393,32 @@ void WindowSystem::draw(GLProgram& gl) {
     gl.updateMaterial(DROPLET_COLOR);
     gl.updateModelMatrix(Matrix4f::translation(origin));
 
-    VertexRecorder rec;
-    for (const auto& it : droplets) {
-        int i = it.first;
-        gl.updateModelMatrix(Matrix4f::translation(origin+posState[i]-Vector3f::FORWARD));
-        drawSphere(cbrt(droplets[i]->mass*.0005f), 10, 10);
-    }
-    rec.draw();
+    //VertexRecorder rec;
+    //for (const auto& it : droplets) {
+    //    int i = it.first;
+    //    gl.updateModelMatrix(Matrix4f::translation(origin+posState[i]-Vector3f::FORWARD));
+    //    drawSphere(cbrt(droplets[i]->mass*.0005f), 10, 10);
+    //}
+    //rec.draw();
 
-    gl.updateModelMatrix(Matrix4f::translation(origin));
-    VertexRecorder rec2;
-    for (int y=1; y < gridSize; ++y) {
-        for (int x=1; x < gridSize; ++x) {
+    //gl.updateModelMatrix(Matrix4f::translation(origin));
+    //VertexRecorder rec2;
+    //for (int y=1; y < gridSize; ++y) {
+    //    for (int x=1; x < gridSize; ++x) {
 
-            Vector3f d = getGridPos(vector<int>({y,x})) - Vector3f::FORWARD*heightMap[y][x];
-            Vector3f c = getGridPos(vector<int>({y,x-1})) - Vector3f::FORWARD*heightMap[y][x-1];
-            Vector3f b = getGridPos(vector<int>({y-1,x})) - Vector3f::FORWARD*heightMap[y-1][x];
-            Vector3f a = getGridPos(vector<int>({y-1,x-1})) - Vector3f::FORWARD*heightMap[y-1][x-1];
-            rec2.record(d, computeNormal(y,x));
-            rec2.record(b, computeNormal(y-1,x));
-            rec2.record(a, computeNormal(y-1,x-1));
+    //        Vector3f d = getGridPos(vector<int>({y,x})) - Vector3f::FORWARD*heightMap[y][x];
+    //        Vector3f c = getGridPos(vector<int>({y,x-1})) - Vector3f::FORWARD*heightMap[y][x-1];
+    //        Vector3f b = getGridPos(vector<int>({y-1,x})) - Vector3f::FORWARD*heightMap[y-1][x];
+    //        Vector3f a = getGridPos(vector<int>({y-1,x-1})) - Vector3f::FORWARD*heightMap[y-1][x-1];
+    //        rec2.record(d, computeNormal(y,x));
+    //        rec2.record(b, computeNormal(y-1,x));
+    //        rec2.record(a, computeNormal(y-1,x-1));
 
-            rec2.record(d, computeNormal(y,x));
-            rec2.record(a, computeNormal(y-1,x-1));
-            rec2.record(c, computeNormal(y,x-1));
-        }
-    }
-    rec2.draw();
+    //        rec2.record(d, computeNormal(y,x));
+    //        rec2.record(a, computeNormal(y-1,x-1));
+    //        rec2.record(c, computeNormal(y,x-1));
+    //    }
+    //}
+    //rec2.draw();
 }
 
