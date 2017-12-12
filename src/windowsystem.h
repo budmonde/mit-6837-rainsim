@@ -20,7 +20,7 @@ public:
             float size_ = 5.0f,
             float granularity_ = 0.01f,
             float raininess_ = 0.05f,
-            vector<float> dropletSize_ = vector<float>({0.f, 1.3f})
+            vector<float> dropletSize_ = vector<float>({0.f, 1.2f})
             );
     ~WindowSystem() {};
 

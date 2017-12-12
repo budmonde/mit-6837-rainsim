@@ -60,7 +60,7 @@ void WindowSystem::resetAffinityMap() {
 void WindowSystem::addDroplet(float mass, Vector3f pos, Vector3f vel) {
     ++maxDropletIdx;
     int droplet_idx = maxDropletIdx;
-    droplets.insert(pair <int, Droplet *> (droplet_idx, new Droplet(droplet_idx, mass)));
+    droplets.insert(pair <int, Droplet *> (droplet_idx, new Droplet(droplet_idx, mass, granularity)));
     // for debugging
     Vector3f aligned_pos = getGridPos(getGridIdx(pos));
     posState.insert(pair <int, Vector3f> (droplet_idx, aligned_pos));
@@ -206,34 +206,41 @@ void WindowSystem::takeStep(float stepSize) {
 
     for (const auto& it : droplets) {
         int i = it.first;
-        float r = droplets[i]->radius();
-        float rSq = r*r;
-        vector<int> lo = clipIdx(getGridIdx(posState[i] + Vector3f(-r, -r, 0.f)));
-        vector<int> hi = clipIdx(getGridIdx(posState[i] + Vector3f(r, r, 0.f)));
-        for (int y=lo[0]; y <= hi[0]; ++y) {
-            for (int x=lo[1]; x <= hi[1]; ++x) {
-                float heightSq = rSq - (getGridPos(vector<int>({y, x})) - posState[i]).absSquared();
-                if (heightSq > 0 && heightSq > pow(heightMap[y][x],2)) {
-                    heightMap[y][x] = sqrt(heightSq);
-                    if (idMap[y][x] != -1) {
-                        int j = idMap[y][x];
-                        bool iSetExists = setLookupTable.find(i) != setLookupTable.end();
-                        bool jSetExists = setLookupTable.find(j) != setLookupTable.end();
-                        int setIdx;
-                        if (iSetExists) {
-                            setIdx = setLookupTable[i];
-                        } else if (jSetExists) {
-                            setIdx = setLookupTable[j];
-                        } else {
-                            toMerge.push_back(set<int>());
-                            setIdx = toMerge.size() - 1;
+        Droplet * d = droplets[i];
+        vector<Vector3f> offsetChain = d->getOffsetChain();
+
+        Vector3f center = posState[i];
+        for (int sd_i=0; sd_i<(int)offsetChain.size(); ++sd_i) {
+            float r = d->radius(d->mass * d->getDist()[sd_i]);
+            float rSq = r*r;
+            center += offsetChain[sd_i];
+            vector<int> lo = clipIdx(getGridIdx(center + Vector3f(-r, -r, 0.f)));
+            vector<int> hi = clipIdx(getGridIdx(center + Vector3f(r, r, 0.f)));
+            for (int y=lo[0]; y <= hi[0]; ++y) {
+                for (int x=lo[1]; x <= hi[1]; ++x) {
+                    float heightSq = rSq - (getGridPos(vector<int>({y, x})) - center).absSquared();
+                    if (heightSq > 0 && heightSq > pow(heightMap[y][x],2)) {
+                        heightMap[y][x] = sqrt(heightSq);
+                        if (idMap[y][x] != -1) {
+                            int j = idMap[y][x];
+                            bool iSetExists = setLookupTable.find(i) != setLookupTable.end();
+                            bool jSetExists = setLookupTable.find(j) != setLookupTable.end();
+                            int setIdx;
+                            if (iSetExists) {
+                                setIdx = setLookupTable[i];
+                            } else if (jSetExists) {
+                                setIdx = setLookupTable[j];
+                            } else {
+                                toMerge.push_back(set<int>());
+                                setIdx = toMerge.size() - 1;
+                            }
+                            toMerge[setIdx].insert(idMap[y][x]);
+                            toMerge[setIdx].insert(i);
+                            setLookupTable[idMap[y][x]] = setIdx;
+                            setLookupTable[i] = setIdx;
                         }
-                        toMerge[setIdx].insert(idMap[y][x]);
-                        toMerge[setIdx].insert(i);
-                        setLookupTable[idMap[y][x]] = setIdx;
-                        setLookupTable[i] = setIdx;
+                        idMap[y][x] = i;
                     }
-                    idMap[y][x] = i;
                 }
             }
         }
@@ -312,12 +319,12 @@ void WindowSystem::takeStep(float stepSize) {
             posState.erase(idx);
             velState.erase(idx);
         }
-        vel *= 1.1f / mass;
+        vel *= 1.6f / mass;
         // Init new drops
         addDroplet(mass, pos, vel);
         // Update idMap for the new droplet
         int i = maxDropletIdx;
-        float r = droplets[i]->radius();
+        float r = droplets[i]->radius(droplets[i]->mass);
         float rSq = r*r;
         vector<int> lo = clipIdx(getGridIdx(posState[i] + Vector3f(-r, -r, 0.f)));
         vector<int> hi = clipIdx(getGridIdx(posState[i] + Vector3f(r, r, 0.f)));
@@ -347,6 +354,7 @@ void WindowSystem::takeStep(float stepSize) {
     fname << setfill('0') << setw(4);
     fname << frameNo;
     fname << ".png";
+    cout << fname.str() << endl;
     im.write(fname.str());
 
 }
@@ -476,8 +484,15 @@ void WindowSystem::draw(GLProgram& gl) {
     //VertexRecorder rec;
     //for (const auto& it : droplets) {
     //    int i = it.first;
-    //    gl.updateModelMatrix(Matrix4f::translation(origin+posState[i]-Vector3f::FORWARD));
-    //    drawSphere(cbrt(droplets[i]->mass*.0005f), 10, 10);
+    //    Droplet * d = droplets[i];
+    //    Vector3f center = posState[i];
+    //    vector<Vector3f> offsetChain = d->getOffsetChain();
+    //    for (int sd_i=0; sd_i<(int)offsetChain.size(); ++sd_i) {
+    //        float r = d->radius(d->mass * d->getDist()[sd_i]);
+    //        center += offsetChain[sd_i];
+    //        gl.updateModelMatrix(Matrix4f::translation(origin+center-Vector3f::FORWARD));
+    //        drawSphere(r, 10, 10);
+    //    }
     //}
     //rec.draw();
 
