@@ -30,7 +30,7 @@ void initRendering();
 void drawAxis();
 
 // Some constants
-const Vector3f LIGHT_POS(3.0f, 3.0f, 5.0f);
+const Vector3f LIGHT_POS(0.0f, 3.0f, 5.0f);
 const Vector3f LIGHT_COLOR(120.0f, 120.0f, 120.0f);
 const Vector3f FLOOR_COLOR(1.0f, 0.0f, 0.0f);
 
@@ -314,7 +314,7 @@ int main(int argc, char** argv)
         stepSystem();
 
         // Draw the simulation
-        drawSystem();
+        //drawSystem();
 
         // Make back buffer visible
         glfwSwapBuffers(window);

@@ -17,10 +17,10 @@ public:
     // Constructor, Destructor
     WindowSystem(
             Vector3f origin_ = Vector3f(-2.5f, -2.5f, 0.f),
-            float size_ = 5.f,
-            float granularity_ = 0.1f,
+            float size_ = 5.0f,
+            float granularity_ = 0.01f,
             float raininess_ = 0.05f,
-            vector<float> dropletSize_ = vector<float>({0.f, 1.2f})
+            vector<float> dropletSize_ = vector<float>({0.f, 1.3f})
             );
     ~WindowSystem() {};
 
@@ -42,7 +42,8 @@ public:
     void resetAffinityMap();
     void addDroplet(float mass, Vector3f pos, Vector3f vel);
     void takeStep(float stepSize) override;
-    void blurHeightMap(int kernel_sz=3, float epsilon=0.01f);
+    void blurHeightMap(float epsilon=0.01f);
+    void erodeHeightMap(float factor=0.5f);
 
     // Debug Helpers
     void debugIdMap();
@@ -67,6 +68,7 @@ protected:
     float granularity;              // width of a grid cell
     int gridSize;                   // number of cells in a row
 
+    // TODO: Change rep to Image classes
     vector<vector<int>> idMap;
     vector<vector<float>> heightMap;
     vector<vector<float>> affinityMap;
